@@ -1,0 +1,14 @@
+{
+  "words": [
+    {
+      "word": "日本",
+      "vars": ["japan", "day of books", "one day", "one book"],
+      "correct": 0
+    },
+    {
+      "word": "主人公",
+      "vars": ["person", "main hero", "sad person", "king"],
+      "correct": 1
+    }
+  ]
+}
