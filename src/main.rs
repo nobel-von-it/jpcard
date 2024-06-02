@@ -118,6 +118,7 @@ impl Screen {
         let dictionary: Dictionary = serde_json::from_reader(std::fs::File::open("ex.json").unwrap()).unwrap();
         let rl = rand::thread_rng().gen_range(0..dictionary.words.len());
 
+        // add shuffle variants
         if let Some(word) = dictionary.words.get(rl) {
             self.question = word.word.clone();
             self.choice.vars = word.vars.iter().map(|var| Choice::Vars(var.to_string())).collect();
