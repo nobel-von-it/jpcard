@@ -220,8 +220,6 @@ fn run<B: Backend>(t: &mut Terminal<B>, screen: &mut Screen) -> anyhow::Result<(
                     Choice::Start => screen.start(),
                     Choice::Vars(_) => {
                         screen.compare();
-
-                        std::thread::sleep(std::time::Duration::from_millis(500));
                         screen.update();
                     }
                 },
