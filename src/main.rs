@@ -1,4 +1,3 @@
-
 use std::io::stdout;
 
 use crossterm::{
@@ -8,9 +7,13 @@ use crossterm::{
 };
 use rand::Rng;
 use ratatui::{
-    backend::{Backend, CrosstermBackend}, layout::{Constraint, Direction, Layout}, text::Text, widgets::{Block, Borders, Paragraph}, Frame, Terminal
+    backend::{Backend, CrosstermBackend},
+    layout::{Constraint, Direction, Layout},
+    text::Text,
+    widgets::{Block, Borders, Paragraph},
+    Frame, Terminal,
 };
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 const GAME_NAME: &str = "JP WORDS GAME";
 
@@ -67,11 +70,11 @@ impl Choices {
         }
     }
     fn down(&mut self) {
-        if self.select < self.vars.len()-1 {
+        if self.select < self.vars.len() - 1 {
             self.select += 1;
         }
     }
-    fn get(&self) -> Choice{
+    fn get(&self) -> Choice {
         self.vars[self.select].clone()
     }
 }
@@ -100,13 +103,13 @@ impl Screen {
             self.score += 1;
         }
     }
-    // read a word and variants from file 
+    // read a word and variants from file
     fn update(&mut self) {
         if self.state != States::Game {
             return;
         }
 
-        // file: 
+        // file:
         // jp_word1:1var,2var,3var...:correct_ansver uint
         // jp_word2:1var,2var,3var...:correct_ansver uint
         // ...: ...: ...
@@ -115,13 +118,18 @@ impl Screen {
         // words: [word1, word2]
         // this is the simplest way to parse data
 
-        let dictionary: Dictionary = serde_json::from_reader(std::fs::File::open("ex.json").unwrap()).unwrap();
+        let dictionary: Dictionary =
+            serde_json::from_reader(std::fs::File::open("ex.json").unwrap()).unwrap();
         let rl = rand::thread_rng().gen_range(0..dictionary.words.len());
 
         // add shuffle variants
         if let Some(word) = dictionary.words.get(rl) {
             self.question = word.word.clone();
-            self.choice.vars = word.vars.iter().map(|var| Choice::Vars(var.to_string())).collect();
+            self.choice.vars = word
+                .vars
+                .iter()
+                .map(|var| Choice::Vars(var.to_string()))
+                .collect();
             self.choice.select = 0;
             self.choice.correct = word.correct;
         }
@@ -129,15 +137,29 @@ impl Screen {
     fn draw(&self, f: &mut Frame) {
         let full_layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(1), Constraint::Percentage(30), Constraint::Percentage(70)])
+            .constraints([
+                Constraint::Length(1),
+                Constraint::Percentage(30),
+                Constraint::Percentage(70),
+            ])
             .split(f.size());
         let score_layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(100), Constraint::Length(1), Constraint::Length(1)])
-            .split(Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([Constraint::Length(1), Constraint::Length(3), Constraint::Percentage(100)])
-                .split(full_layout[2])[1]);
+            .constraints([
+                Constraint::Percentage(100),
+                Constraint::Length(1),
+                Constraint::Length(1),
+            ])
+            .split(
+                Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([
+                        Constraint::Length(1),
+                        Constraint::Length(3),
+                        Constraint::Percentage(100),
+                    ])
+                    .split(full_layout[2])[1],
+            );
         let mut constraints = vec![];
         for _ in self.choice.vars.iter() {
             constraints.push(Constraint::Length(2));
@@ -149,18 +171,17 @@ impl Screen {
 
         let score_widget = Text::raw(self.score.to_string()).centered();
         let question_widget = Text::raw(&self.question).centered();
-        let full_widget = Paragraph::new("")
-            .block(Block::new().title(GAME_NAME).borders(Borders::ALL));
-
+        let full_widget =
+            Paragraph::new("").block(Block::new().title(GAME_NAME).borders(Borders::ALL));
 
         f.render_widget(score_widget, score_layout[1]);
         f.render_widget(full_widget, f.size());
         f.render_widget(question_widget, full_layout[1]);
         for (i, choice) in self.choice.vars.iter().enumerate() {
             let tmp = if i == self.choice.select {
-                format!("{}. [{}]", i+1, choice.to_string())
+                format!("{}. [{}]", i + 1, choice.to_string())
             } else {
-                format!("{}. {}", i+1, choice.to_string())
+                format!("{}. {}", i + 1, choice.to_string())
             };
             f.render_widget(Text::raw(tmp).centered(), choice_layout[i]);
         }
@@ -203,11 +224,10 @@ fn run<B: Backend>(t: &mut Terminal<B>, screen: &mut Screen) -> anyhow::Result<(
                         std::thread::sleep(std::time::Duration::from_millis(500));
                         screen.update();
                     }
-                }
+                },
                 _ => {}
             }
         }
     }
     Ok(())
 }
-
