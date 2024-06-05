@@ -1,4 +1,5 @@
-use std::io::stdout;
+use core::fmt;
+use std::{fmt::write, io::stdout};
 
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
@@ -8,7 +9,7 @@ use crossterm::{
 use rand::Rng;
 use ratatui::{
     backend::{Backend, CrosstermBackend},
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     text::Text,
     widgets::{Block, Borders, Paragraph},
     Frame, Terminal,
@@ -21,25 +22,29 @@ const GAME_NAME: &str = "JP WORDS GAME";
 enum States {
     Menu,
     Game,
+    Exiting,
 }
 #[derive(Debug, Clone)]
 enum Choice {
     // options
     Exit,
     Start,
+    Yes,
+    No,
     // dynamic variants
     Vars(String),
 }
-impl Choice {
-    fn to_string(&self) -> String {
-        match self.clone() {
-            Choice::Start => String::from("Start"),
-            Choice::Exit => String::from("Exit"),
-            Choice::Vars(str) => str,
+impl fmt::Display for Choice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Choice::Start => write!(f, "Start"),
+            Choice::Exit => write!(f, "Exit"),
+            Choice::Yes => write!(f, "Yes"),
+            Choice::No => write!(f, "No"),
+            Choice::Vars(str) => write!(f, "{str}")
         }
     }
 }
-
 #[derive(Debug, Serialize, Deserialize)]
 struct Dictionary {
     words: Vec<Word>,
@@ -49,6 +54,28 @@ struct Word {
     word: String,
     vars: Vec<String>,
     correct: usize,
+}
+
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    // Cut the given rectangle into three vertical pieces
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(r);
+
+    // Then cut the middle vertical piece into three width-wise pieces
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1] // Return the middle chunk
 }
 
 struct Choices {
@@ -119,12 +146,12 @@ impl Screen {
         // this is the simplest way to parse data
 
         let dictionary: Dictionary =
-            serde_json::from_reader(std::fs::File::open("ex.json").unwrap()).unwrap();
+        serde_json::from_reader(std::fs::File::open("ex.json").unwrap()).unwrap();
         let rl = rand::thread_rng().gen_range(0..dictionary.words.len());
 
         // add shuffle variants
         if let Some(word) = dictionary.words.get(rl) {
-            self.question = word.word.clone();
+            self.question.clone_from(&word.word);
             self.choice.vars = word
                 .vars
                 .iter()
@@ -135,55 +162,75 @@ impl Screen {
         }
     }
     fn draw(&self, f: &mut Frame) {
-        let full_layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(1),
-                Constraint::Percentage(30),
-                Constraint::Percentage(70),
-            ])
-            .split(f.size());
-        let score_layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Percentage(100),
-                Constraint::Length(1),
-                Constraint::Length(1),
-            ])
-            .split(
-                Layout::default()
-                    .direction(Direction::Horizontal)
+        match self.state {
+            States::Exiting => {
+                let center_exit = centered_rect(30, 30, f.size());
+                let exit_layout = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([Constraint::Percentage(100), Constraint::Length(3), Constraint::Length(3)])
+                    .split(center_exit);
+                let exit_block = Block::default().title("Exit").borders(Borders::ALL);
+                let exit_text = Text::raw("Are you sure?").centered();
+                let yes_button = Text::raw(Choice::Yes.to_string()).centered();
+                let no_button = Text::raw(Choice::No.to_string()).centered();
+
+                f.render_widget(exit_block, center_exit);
+                f.render_widget(exit_text, exit_layout[0]);
+                f.render_widget(yes_button, exit_layout[1]);
+                f.render_widget(no_button, exit_layout[2]);
+            }
+            _ => {
+                let full_layout = Layout::default()
+                    .direction(Direction::Vertical)
                     .constraints([
                         Constraint::Length(1),
-                        Constraint::Length(3),
-                        Constraint::Percentage(100),
+                        Constraint::Percentage(30),
+                        Constraint::Percentage(70),
                     ])
-                    .split(full_layout[2])[1],
-            );
-        let mut constraints = vec![];
-        for _ in self.choice.vars.iter() {
-            constraints.push(Constraint::Length(2));
-        }
-        let choice_layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(constraints)
-            .split(full_layout[2]);
+                    .split(f.size());
+                let score_layout = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([
+                        Constraint::Percentage(100),
+                        Constraint::Length(1),
+                        Constraint::Length(1),
+                    ])
+                    .split(
+                        Layout::default()
+                            .direction(Direction::Horizontal)
+                            .constraints([
+                                Constraint::Length(1),
+                                Constraint::Length(3),
+                                Constraint::Percentage(100),
+                            ])
+                            .split(full_layout[2])[1],
+                    );
+                let mut constraints = vec![];
+                for _ in self.choice.vars.iter() {
+                    constraints.push(Constraint::Length(2));
+                }
+                let choice_layout = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints(constraints)
+                    .split(full_layout[2]);
 
-        let score_widget = Text::raw(self.score.to_string()).centered();
-        let question_widget = Text::raw(&self.question).centered();
-        let full_widget =
-            Paragraph::new("").block(Block::new().title(GAME_NAME).borders(Borders::ALL));
+                let score_widget = Text::raw(self.score.to_string()).centered();
+                let question_widget = Text::raw(&self.question).centered();
+                let full_widget =
+                Paragraph::new("").block(Block::new().title(GAME_NAME).borders(Borders::ALL));
 
-        f.render_widget(score_widget, score_layout[1]);
-        f.render_widget(full_widget, f.size());
-        f.render_widget(question_widget, full_layout[1]);
-        for (i, choice) in self.choice.vars.iter().enumerate() {
-            let tmp = if i == self.choice.select {
-                format!("{}. [{}]", i + 1, choice.to_string())
-            } else {
-                format!("{}. {}", i + 1, choice.to_string())
-            };
-            f.render_widget(Text::raw(tmp).centered(), choice_layout[i]);
+                f.render_widget(score_widget, score_layout[1]);
+                f.render_widget(full_widget, f.size());
+                f.render_widget(question_widget, full_layout[1]);
+                for (i, choice) in self.choice.vars.iter().enumerate() {
+                    let tmp = if i == self.choice.select {
+                        format!("{}. [{}]", i + 1, choice)
+                    } else {
+                        format!("{}. {}", i + 1, choice)
+                    };
+                    f.render_widget(Text::raw(tmp).centered(), choice_layout[i]);
+                }
+            }
         }
     }
 }
@@ -212,12 +259,12 @@ fn run<B: Backend>(t: &mut Terminal<B>, screen: &mut Screen) -> anyhow::Result<(
                 continue;
             }
             match key.code {
-                KeyCode::Esc => break,
+                KeyCode::Esc => screen.state = States::Exiting,
                 KeyCode::Up => screen.choice.up(),
                 KeyCode::Down => screen.choice.down(),
                 KeyCode::Enter => match screen.choice.get() {
-                    Choice::Exit => break,
-                    Choice::Start => screen.start(),
+                    Choice::Exit | Choice::Yes => break,
+                    Choice::Start | Choice::No => screen.start(),
                     Choice::Vars(_) => {
                         screen.compare();
                         screen.update();
