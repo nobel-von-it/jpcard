@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{fmt::write, io::stdout};
+use std::io::stdout;
 
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
@@ -41,7 +41,7 @@ impl fmt::Display for Choice {
             Choice::Exit => write!(f, "Exit"),
             Choice::Yes => write!(f, "Yes"),
             Choice::No => write!(f, "No"),
-            Choice::Vars(str) => write!(f, "{str}")
+            Choice::Vars(str) => write!(f, "{str}"),
         }
     }
 }
@@ -146,7 +146,7 @@ impl Screen {
         // this is the simplest way to parse data
 
         let dictionary: Dictionary =
-        serde_json::from_reader(std::fs::File::open("ex.json").unwrap()).unwrap();
+            serde_json::from_reader(std::fs::File::open("ex.json").unwrap()).unwrap();
         let rl = rand::thread_rng().gen_range(0..dictionary.words.len());
 
         // add shuffle variants
@@ -167,7 +167,11 @@ impl Screen {
                 let center_exit = centered_rect(30, 30, f.size());
                 let exit_layout = Layout::default()
                     .direction(Direction::Vertical)
-                    .constraints([Constraint::Percentage(100), Constraint::Length(3), Constraint::Length(3)])
+                    .constraints([
+                        Constraint::Percentage(100),
+                        Constraint::Length(3),
+                        Constraint::Length(3),
+                    ])
                     .split(center_exit);
                 let exit_block = Block::default().title("Exit").borders(Borders::ALL);
                 let exit_text = Text::raw("Are you sure?").centered();
@@ -217,7 +221,7 @@ impl Screen {
                 let score_widget = Text::raw(self.score.to_string()).centered();
                 let question_widget = Text::raw(&self.question).centered();
                 let full_widget =
-                Paragraph::new("").block(Block::new().title(GAME_NAME).borders(Borders::ALL));
+                    Paragraph::new("").block(Block::new().title(GAME_NAME).borders(Borders::ALL));
 
                 f.render_widget(score_widget, score_layout[1]);
                 f.render_widget(full_widget, f.size());
